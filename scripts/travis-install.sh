@@ -73,3 +73,17 @@ pip install -r dev_requirements.txt
 # Sleep so Presto has time to start up.
 # Otherwise we might get 'No nodes available to run query' or 'Presto server is still initializing'
 while ! grep -q 'SERVER STARTED' /tmp/presto/data/var/log/server.log; do sleep 1; done
+
+#
+# Spark
+#
+
+mkdir -p /opt/spark
+wget http://www-us.apache.org/dist/spark/spark-2.3.2/spark-2.3.2-bin-hadoop2.7.tgz -O /tmp/spark.tar.gz
+tar xzf /tmp/spark.tar.gz -C /opt/spark --strip-components=1
+rm -f /tmp/spark.tar.gz
+cp $(dirname $0)/travis-conf/spark/hive-site.xml /opt/spark/conf/hive-site.xml
+/opt/spark/sbin/start-thriftserver.sh \
+  --hiveconf hive.server2.thrift.port=10001 \
+  --hiveconf hive.server2.thrift.bind.host=localhost \
+  --master local[*]
