@@ -284,17 +284,26 @@ class HiveDialect(default.DefaultDialect):
                     break
         except exc.OperationalError as e:
             # Does the table exist?
-            regex_fmt = r'TExecuteStatementResp.*SemanticException.*Table not found {}'
-            regex = regex_fmt.format(re.escape(full_table))
+            regex_fmt = r'TExecuteStatementResp.*NoSuchTableException.*Table or view \'{}\'' \
+                        r' not found'
+            regex = regex_fmt.format(re.escape(table_name))
             if re.search(regex, e.args[0]):
                 raise exc.NoSuchTableError(full_table)
+            elif schema:
+                schema_regex_fmt = r'TExecuteStatementResp.*NoSuchDatabaseException.*Database ' \
+                                   r'\'{}\' not found'
+                schema_regex = schema_regex_fmt.format(re.escape(schema))
+                if re.search(schema_regex, e.args[0]):
+                    raise exc.NoSuchTableError(full_table)
             else:
-                raise
+                # When a hive-only column exists in a table
+                hive_regex_fmt = r'org.apache.spark.SparkException: Cannot recognize hive type ' \
+                                 r'string'
+                if re.search(hive_regex_fmt, e.args[0]):
+                    raise exc.UnreflectableTableError
+                else:
+                    raise
         else:
-            # Hive is stupid: this is what I get from DESCRIBE some_schema.does_not_exist
-            regex = r'Table .* does not exist'
-            if len(rows) == 1 and re.match(regex, rows[0].col_name):
-                raise exc.NoSuchTableError(full_table)
             return rows
 
     def has_table(self, connection, table_name, schema=None):
@@ -302,6 +311,8 @@ class HiveDialect(default.DefaultDialect):
             self._get_table_columns(connection, table_name, schema)
             return True
         except exc.NoSuchTableError:
+            return False
+        except exc.UnreflectableTableError:
             return False
 
     def get_columns(self, connection, table_name, schema=None, **kw):
@@ -362,7 +373,10 @@ class HiveDialect(default.DefaultDialect):
         query = 'SHOW TABLES'
         if schema:
             query += ' IN ' + self.identifier_preparer.quote_identifier(schema)
-        return [row[0] for row in connection.execute(query)]
+        return list(row[1] for row in filter(
+            lambda x: not x[-1],
+            [row for row in connection.execute(query)]
+        ))
 
     def do_rollback(self, dbapi_connection):
         # No transactions for Hive
