@@ -228,7 +228,7 @@ class HiveExecutionContext(default.DefaultExecutionContext):
 class HiveDialect(default.DefaultDialect):
     name = b'hive'
     driver = b'thrift'
-    execution_ctx_cls = HiveExecutionContext
+    execution_ctx_cls = default.DefaultExecutionContext
     preparer = HiveIdentifierPreparer
     statement_compiler = HiveCompiler
     supports_views = True
@@ -277,7 +277,7 @@ class HiveDialect(default.DefaultDialect):
         # Using DESCRIBE works but is uglier.
         try:
             # This needs the table name to be unescaped (no backticks).
-            rows = connection.execute('DESCRIBE {}'.format(full_table)).fetchall()
+            rows = [column for column in connection.execute('DESCRIBE {}'.format(full_table)).fetchall()]
             for i, row in enumerate(rows):
                 if row[0] in {"# Partitioning", "Not partitioned", ""}:
                     rows = rows[0:i]
