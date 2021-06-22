@@ -18,7 +18,11 @@ class SparkSqlDialect(sqlalchemy_hive.HiveDialect):
         # Using DESCRIBE works but is uglier.
         try:
             # This needs the table name to be unescaped (no backticks).
-            rows = [column for column in connection.execute('DESCRIBE {}'.format(full_table)).fetchall() if column[0] not in {"# Partitioning", "Not partitioned", ""}]
+            rows = [column for column in connection.execute('DESCRIBE {}'.format(full_table)).fetchall()]
+            for i, row in enumerate(rows):
+                if row[0] in {"# Partitioning", "Not partitioned", ""}:
+                    rows = rows[0:i]
+                    break
         except exc.OperationalError as e:
             # Does the table exist?
             regex_fmt = r'TExecuteStatementResp.*NoSuchTableException.*Table or view \'{}\'' \
